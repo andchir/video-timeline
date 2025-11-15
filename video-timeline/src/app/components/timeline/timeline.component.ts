@@ -188,15 +188,11 @@ export class TimelineComponent {
     }
 
     const coords = this.getEventCoordinates(event);
-    // Track pointer down position for click vs drag detection
     this.mouseDownPosition = { x: coords.clientX, y: coords.clientY };
 
     const mediaItemElement = event.currentTarget as HTMLElement;
     const rect = mediaItemElement.getBoundingClientRect();
-    const trackElement = mediaItemElement.closest('.track') as HTMLElement;
     const clickX = coords.clientX - rect.left;
-
-    console.log(coords, 'clickX: ', clickX);
 
     // Convert pixel offset to time offset
     this.dragOffsetTime = clickX / this.pixelsPerMillisecond();
@@ -219,17 +215,15 @@ export class TimelineComponent {
       this.handleResize(event, track);
       return;
     }
+    event.preventDefault();
+    event.stopPropagation();
 
     if (!this.draggedItem) return;
 
     const coords = this.getEventCoordinates(event);
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
-    // Fix for issue #83: getBoundingClientRect() returns viewport-relative coordinates,
-    // and coords.clientX is also viewport-relative, so we don't need to add scrollLeft
     const x = coords.clientX - rect.left;
-    // Calculate the requested start time by subtracting the drag offset
-    // This keeps the pointer at the same position within the item where dragging started
     const requestedStartTime = Math.max(0, x / this.pixelsPerMillisecond() - this.dragOffsetTime);
 
     this.state.update(s => {
