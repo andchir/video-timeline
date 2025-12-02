@@ -47,7 +47,10 @@
     <!-- Media Toolbar (positioned absolutely above timeline, aligned with left panel) -->
     <app-media-toolbar
       [isVisible]="hasSelectedItem()"
-      (trimMedia)="trimSelectedMedia()">
+      [hasClipboard]="hasClipboardItem()"
+      (trimMedia)="trimSelectedMedia()"
+      (copyMedia)="copySelectedMedia()"
+      (pasteMedia)="pasteMedia()">
     </app-media-toolbar>
   </div>
   <!-- Timeline content wrapper with unified horizontal scrolling -->

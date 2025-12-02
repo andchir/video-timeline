@@ -98,6 +98,15 @@ export class TimelineComponent {
   readonly showMediaLibrary = signal<boolean>(false);
   private mediaLibraryTargetTrackId: string | null = null;
 
+  // Clipboard state for copy/paste functionality
+  private readonly clipboardItem = signal<MediaItem | null>(null);
+  private readonly clipboardSourceTrackId = signal<string | null>(null);
+
+  // Computed: whether a media item is in clipboard
+  readonly hasClipboardItem = computed(() => {
+    return this.clipboardItem() !== null;
+  });
+
   constructor(private dragDropService: TimelineDragDropService) {
   }
 
@@ -937,5 +946,192 @@ export class TimelineComponent {
       'Media trimmed successfully.',
       'success'
     );
+  }
+
+  /**
+   * Copy the selected media item to the clipboard.
+   * Stores a copy of the item and the track it was copied from.
+   */
+  copySelectedMedia(): void {
+    const currentState = this.state();
+    const selectedItemId = currentState.selectedItemId;
+
+    if (!selectedItemId) {
+      return;
+    }
+
+    // Find the selected item and its track
+    let selectedItem: MediaItem | null = null;
+    let selectedTrackId: string | null = null;
+
+    for (const track of currentState.tracks) {
+      const item = track.items.find(i => i.id === selectedItemId);
+      if (item) {
+        selectedItem = item;
+        selectedTrackId = track.id;
+        break;
+      }
+    }
+
+    if (!selectedItem || !selectedTrackId) {
+      return;
+    }
+
+    // Store a copy of the item in clipboard
+    this.clipboardItem.set({ ...selectedItem });
+    this.clipboardSourceTrackId.set(selectedTrackId);
+
+    this.notificationsComponent?.showNotification(
+      'Media copied to clipboard.',
+      'success'
+    );
+  }
+
+  /**
+   * Paste the clipboard media item at the playhead position.
+   * Pastes on the same track where the item was copied from.
+   * If there's no space at playhead position, finds the next available slot.
+   */
+  pasteMedia(): void {
+    const copiedItem = this.clipboardItem();
+    const sourceTrackId = this.clipboardSourceTrackId();
+
+    if (!copiedItem || !sourceTrackId) {
+      return;
+    }
+
+    const currentState = this.state();
+    const playheadTime = currentState.playheadPosition;
+    const totalDuration = currentState.totalDuration;
+
+    // Find the source track
+    let targetTrack = currentState.tracks.find(t => t.id === sourceTrackId);
+
+    // If source track no longer exists, use the first track
+    if (!targetTrack) {
+      targetTrack = currentState.tracks[0];
+      if (!targetTrack) {
+        this.notificationsComponent?.showNotification(
+          'No tracks available to paste media.',
+          'error'
+        );
+        return;
+      }
+    }
+
+    const itemDuration = copiedItem.duration;
+
+    // Try to find a valid position starting from playhead
+    const pastePosition = this.findPastePosition(
+      playheadTime,
+      itemDuration,
+      targetTrack.items,
+      totalDuration
+    );
+
+    if (pastePosition === null) {
+      this.notificationsComponent?.showNotification(
+        'No space available to paste media on this track.',
+        'warning'
+      );
+      return;
+    }
+
+    // Create a new item with a new ID
+    const newItem: MediaItem = {
+      ...copiedItem,
+      id: `item-${Date.now()}`,
+      startTime: pastePosition,
+      trackId: targetTrack.id
+    };
+
+    // Add the new item to the track
+    this.state.update(s => ({
+      ...s,
+      tracks: s.tracks.map(t =>
+        t.id === targetTrack!.id
+          ? { ...t, items: [...t.items, newItem] }
+          : t
+      )
+    }));
+
+    this.notificationsComponent?.showNotification(
+      'Media pasted successfully.',
+      'success'
+    );
+  }
+
+  /**
+   * Find a valid position to paste media item.
+   * First tries at the playhead position, then finds the next available gap.
+   */
+  private findPastePosition(
+    preferredPosition: number,
+    duration: number,
+    existingItems: MediaItem[],
+    totalDuration: number
+  ): number | null {
+    // Check if we can fit at the preferred position (playhead)
+    if (this.canFitAtPosition(preferredPosition, duration, existingItems, totalDuration)) {
+      return preferredPosition;
+    }
+
+    // Sort existing items by start time
+    const sortedItems = [...existingItems].sort((a, b) => a.startTime - b.startTime);
+
+    // Find all gaps on the track and try to place the item
+    const gaps = this.dragDropService.findAllGaps(sortedItems);
+
+    // First, try to find a gap that starts at or after the playhead
+    for (const gap of gaps) {
+      // Calculate actual gap size (considering totalDuration for infinite gaps)
+      const effectiveGapEnd = gap.gapEnd === Infinity ? totalDuration : gap.gapEnd;
+      const gapSize = effectiveGapEnd - gap.gapStart;
+
+      if (gap.gapStart >= preferredPosition && gapSize >= duration) {
+        return gap.gapStart;
+      }
+    }
+
+    // If no gap after playhead, try any gap that can fit the item
+    for (const gap of gaps) {
+      // Calculate actual gap size (considering totalDuration for infinite gaps)
+      const effectiveGapEnd = gap.gapEnd === Infinity ? totalDuration : gap.gapEnd;
+      const gapSize = effectiveGapEnd - gap.gapStart;
+
+      if (gapSize >= duration) {
+        return gap.gapStart;
+      }
+    }
+
+    // No suitable position found
+    return null;
+  }
+
+  /**
+   * Check if an item can fit at a specific position without overlapping.
+   */
+  private canFitAtPosition(
+    position: number,
+    duration: number,
+    existingItems: MediaItem[],
+    totalDuration: number
+  ): boolean {
+    // Check bounds
+    if (position < 0 || position + duration > totalDuration) {
+      return false;
+    }
+
+    // Check for overlaps with existing items
+    const endPosition = position + duration;
+    for (const item of existingItems) {
+      const itemEnd = item.startTime + item.duration;
+      // Check if there's an overlap
+      if (position < itemEnd && endPosition > item.startTime) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

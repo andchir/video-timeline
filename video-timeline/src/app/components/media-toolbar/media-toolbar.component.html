@@ -1,10 +1,26 @@
-@if (isVisible()) {
+@if (isVisible() || hasClipboard()) {
   <div class="media-toolbar">
-    <button
-      class="toolbar-button"
-      (click)="onTrimClick()"
-      title="Trim media">
-      <i class="bi bi-scissors"></i>
-    </button>
+    @if (isVisible()) {
+      <button
+        class="toolbar-button"
+        (click)="onCopyClick()"
+        title="Copy media">
+        <i class="bi bi-clipboard"></i>
+      </button>
+      <button
+        class="toolbar-button"
+        (click)="onTrimClick()"
+        title="Trim media">
+        <i class="bi bi-scissors"></i>
+      </button>
+    }
+    @if (hasClipboard()) {
+      <button
+        class="toolbar-button"
+        (click)="onPasteClick()"
+        title="Paste media">
+        <i class="bi bi-clipboard-check"></i>
+      </button>
+    }
   </div>
 }
