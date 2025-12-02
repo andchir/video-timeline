@@ -43,13 +43,15 @@
     </div>
   </div>
 
-  <!-- Timeline content wrapper with unified horizontal scrolling -->
-  <div class="flex-1 flex flex-col overflow-y-auto overflow-x-auto relative">
+  <div class="relative">
     <!-- Media Toolbar (positioned absolutely above timeline, aligned with left panel) -->
     <app-media-toolbar
       [isVisible]="hasSelectedItem()"
       (trimMedia)="trimSelectedMedia()">
     </app-media-toolbar>
+  </div>
+  <!-- Timeline content wrapper with unified horizontal scrolling -->
+  <div class="flex-1 flex flex-col overflow-y-auto overflow-x-auto relative">
     <!-- Timeline Ruler (sticky to stay visible during vertical scroll) -->
     <div class="flex border-b border-[#3a3a3a] flex-shrink-0 sticky top-0 z-10 bg-[#2a2a2a] relative">
       <!-- Control area to align with track headers -->
