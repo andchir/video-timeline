@@ -1,7 +1,7 @@
 .media-toolbar {
   position: absolute;
-  top: 4px;
-  left: 4px;
+  bottom: 2px;
+  left: 2px;
   z-index: 20;
   display: flex;
   align-items: center;
