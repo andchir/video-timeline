@@ -1,13 +1,15 @@
-import { Component, signal, computed, effect, ViewChild, ElementRef } from '@angular/core';
+import { Component, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MediaType, MediaItem, Track, TimelineState } from '../../models/timeline.models';
 import { MediaLibraryComponent, MediaLibraryItem } from '../media-library/media-library.component';
+import { MediaToolbarComponent } from '../media-toolbar/media-toolbar.component';
+import { NotificationsComponent } from '../notifications/notifications.component';
 import { TimelineDragDropService } from '../../services/timeline-drag-drop.service';
 
 @Component({
   selector: 'app-timeline',
   standalone: true,
-  imports: [CommonModule, MediaLibraryComponent],
+  imports: [CommonModule, MediaLibraryComponent, MediaToolbarComponent, NotificationsComponent],
   templateUrl: './timeline.component.html',
   styleUrl: './timeline.component.css'
 })
@@ -22,6 +24,7 @@ export class TimelineComponent {
 
   // View references
   @ViewChild('timelineRuler') timelineRuler?: ElementRef<HTMLElement>;
+  @ViewChild('notifications') notificationsComponent?: NotificationsComponent;
 
   // Timeline state
   readonly state = signal<TimelineState>({
@@ -68,6 +71,11 @@ export class TimelineComponent {
 
   readonly playheadVisualPosition = computed(() => {
     return this.playheadPosition() + this.TRACK_HEADER_WIDTH;
+  });
+
+  // Computed: whether a media item is currently selected
+  readonly hasSelectedItem = computed(() => {
+    return this.state().selectedItemId !== null;
   });
 
   // Dragging state
@@ -828,5 +836,106 @@ export class TimelineComponent {
 
     // Close the media library after selection
     this.closeMediaLibrary();
+  }
+
+  /**
+   * Trim (split) the selected media item at the playhead position.
+   * Creates two separate items from the original media.
+   */
+  trimSelectedMedia(): void {
+    const currentState = this.state();
+    const selectedItemId = currentState.selectedItemId;
+
+    if (!selectedItemId) {
+      return;
+    }
+
+    // Find the selected item and its track
+    let selectedItem: MediaItem | null = null;
+    let selectedTrack: Track | null = null;
+
+    for (const track of currentState.tracks) {
+      const item = track.items.find(i => i.id === selectedItemId);
+      if (item) {
+        selectedItem = item;
+        selectedTrack = track;
+        break;
+      }
+    }
+
+    if (!selectedItem || !selectedTrack) {
+      return;
+    }
+
+    const playheadTime = currentState.playheadPosition;
+    const itemStart = selectedItem.startTime;
+    const itemEnd = itemStart + selectedItem.duration;
+
+    // Check if playhead is within the selected media item
+    if (playheadTime <= itemStart || playheadTime >= itemEnd) {
+      // Playhead is not within the selected media - show notification
+      this.notificationsComponent?.showNotification(
+        'Position the playhead within the selected media to trim it.',
+        'warning'
+      );
+      return;
+    }
+
+    // Ensure both parts will have at least MIN_ITEM_DURATION
+    const firstPartDuration = playheadTime - itemStart;
+    const secondPartDuration = itemEnd - playheadTime;
+
+    if (firstPartDuration < this.MIN_ITEM_DURATION || secondPartDuration < this.MIN_ITEM_DURATION) {
+      this.notificationsComponent?.showNotification(
+        'Cannot trim: resulting parts would be too short.',
+        'warning'
+      );
+      return;
+    }
+
+    // Calculate mediaStartTime adjustments
+    const originalMediaStartTime = selectedItem.mediaStartTime || 0;
+    const secondPartMediaStartTime = originalMediaStartTime + firstPartDuration;
+
+    // Create two new items from the original
+    const firstPart: MediaItem = {
+      ...selectedItem,
+      id: `item-${Date.now()}-1`,
+      duration: firstPartDuration
+      // mediaStartTime stays the same for first part
+    };
+
+    const secondPart: MediaItem = {
+      ...selectedItem,
+      id: `item-${Date.now()}-2`,
+      startTime: playheadTime,
+      duration: secondPartDuration,
+      mediaStartTime: secondPartMediaStartTime
+    };
+
+    // Update the state: remove original, add two new parts
+    this.state.update(s => ({
+      ...s,
+      tracks: s.tracks.map(t => {
+        if (t.id === selectedTrack!.id) {
+          return {
+            ...t,
+            items: [
+              ...t.items.filter(i => i.id !== selectedItemId),
+              firstPart,
+              secondPart
+            ]
+          };
+        }
+        return t;
+      }),
+      // Deselect after trimming
+      selectedItemId: null
+    }));
+
+    this.notificationsComponent?.showNotification(
+      'Media trimmed successfully.',
+      'success'
+    );
   }
 }
