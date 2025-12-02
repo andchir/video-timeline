@@ -1,0 +1,11 @@
+@if (isVisible()) {
+  <div class="media-toolbar">
+    <button
+      class="toolbar-button"
+      (click)="onTrimClick()"
+      title="Trim media at playhead position">
+      <i class="bi bi-scissors"></i>
+      <span>Trim</span>
+    </button>
+  </div>
+}

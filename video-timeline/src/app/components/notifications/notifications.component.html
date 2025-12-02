@@ -1,0 +1,23 @@
+<div class="notifications-container">
+  @for (notification of notifications(); track notification.id) {
+    <div
+      class="notification"
+      [class.notification-info]="notification.type === 'info'"
+      [class.notification-success]="notification.type === 'success'"
+      [class.notification-warning]="notification.type === 'warning'"
+      [class.notification-error]="notification.type === 'error'"
+      (mouseenter)="onNotificationMouseEnter(notification.id)"
+      (mouseleave)="onNotificationMouseLeave(notification.id)">
+      <div class="notification-content">
+        <i class="bi" [class]="getNotificationIcon(notification.type)"></i>
+        <span class="notification-message">{{ notification.message }}</span>
+      </div>
+      <button
+        class="notification-close"
+        (click)="dismissNotification(notification.id)"
+        title="Close">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>
+  }
+</div>

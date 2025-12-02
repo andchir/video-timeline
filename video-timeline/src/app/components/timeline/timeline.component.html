@@ -43,6 +43,17 @@
     </div>
   </div>
 
+  <!-- Media Toolbar (shown when a media item is selected) -->
+  <div class="px-4 py-2 bg-[#1e1e1e] border-b border-[#3a3a3a]">
+    <app-media-toolbar
+      [isVisible]="hasSelectedItem()"
+      (trimMedia)="trimSelectedMedia()">
+    </app-media-toolbar>
+    @if (!hasSelectedItem()) {
+      <div class="h-[38px]"></div>
+    }
+  </div>
+
   <!-- Timeline content wrapper with unified horizontal scrolling -->
   <div class="flex-1 flex flex-col overflow-y-auto overflow-x-auto relative">
     <!-- Timeline Ruler (sticky to stay visible during vertical scroll) -->
@@ -210,4 +221,7 @@
       (selectMedia)="onMediaSelected($event)">
     </app-media-library>
   }
+
+  <!-- Notifications -->
+  <app-notifications #notifications></app-notifications>
 </div>

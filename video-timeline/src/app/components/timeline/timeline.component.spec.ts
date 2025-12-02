@@ -220,7 +220,7 @@ describe('TimelineComponent', () => {
         component['draggedItemOriginalTrackId'] = track.id;
 
         // Move to a position that would overlap with item1
-        component.onTrackMouseMove(mockEvent, track);
+        component.onTrackPointerMove(mockEvent, track);
 
         const items = component.state().tracks.find(t => t.id === track.id)?.items || [];
         const draggedItem = items.find(i => i.id === 'item2');
@@ -276,7 +276,7 @@ describe('TimelineComponent', () => {
         component['draggedItemOriginalTrackId'] = track.id;
 
         // Move within same track
-        component.onTrackMouseMove(mockEvent, track);
+        component.onTrackPointerMove(mockEvent, track);
 
         // Item should still exist
         const items = component.state().tracks.find(t => t.id === track.id)?.items || [];

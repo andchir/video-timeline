@@ -1,0 +1,48 @@
+.media-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #3a3a3a;
+  border: none;
+  border-radius: 4px;
+  color: #e5e5e5;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.toolbar-button:hover {
+  background: #4a4a4a;
+  color: #fff;
+}
+
+.toolbar-button:active {
+  background: #5a5a5a;
+}
+
+.toolbar-button i {
+  font-size: 14px;
+}
