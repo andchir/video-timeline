@@ -41,7 +41,7 @@ export class MediaLibraryComponent {
       id: 'audio-1',
       name: 'audio.mp3',
       type: MediaType.AUDIO,
-      duration: 88000, // 1 minute 28 seconds
+      duration: 30000, // 30 seconds
       url: 'https://andchir.github.io/video-timeline/audio.mp3'
     },
     // Images
