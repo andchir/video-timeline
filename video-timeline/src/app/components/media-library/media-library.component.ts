@@ -7,6 +7,7 @@ export interface MediaLibraryItem {
   name: string;
   type: MediaType;
   duration: number; // milliseconds
+  url?: string; // URL to the actual media file
   thumbnail?: string;
 }
 
@@ -30,59 +31,26 @@ export class MediaLibraryComponent {
     // Videos
     {
       id: 'video-1',
-      name: 'Sample Video 1',
+      name: 'video.mp4',
       type: MediaType.VIDEO,
-      duration: 10000 // 10 seconds
-    },
-    {
-      id: 'video-2',
-      name: 'Sample Video 2',
-      type: MediaType.VIDEO,
-      duration: 15000 // 15 seconds
-    },
-    {
-      id: 'video-3',
-      name: 'Sample Video 3',
-      type: MediaType.VIDEO,
-      duration: 8000 // 8 seconds
+      duration: 12000, // 12 seconds
+      url: 'https://andchir.github.io/video-timeline/video.mp4'
     },
     // Audio
     {
       id: 'audio-1',
-      name: 'Sample Audio 1',
+      name: 'audio.mp3',
       type: MediaType.AUDIO,
-      duration: 20000 // 20 seconds
-    },
-    {
-      id: 'audio-2',
-      name: 'Sample Audio 2',
-      type: MediaType.AUDIO,
-      duration: 12000 // 12 seconds
-    },
-    {
-      id: 'audio-3',
-      name: 'Sample Audio 3',
-      type: MediaType.AUDIO,
-      duration: 18000 // 18 seconds
+      duration: 88000, // 1 minute 28 seconds
+      url: 'https://andchir.github.io/video-timeline/audio.mp3'
     },
     // Images
     {
       id: 'image-1',
-      name: 'Sample Image 1',
+      name: 'image.jpg',
       type: MediaType.IMAGE,
-      duration: 5000 // 5 seconds default
-    },
-    {
-      id: 'image-2',
-      name: 'Sample Image 2',
-      type: MediaType.IMAGE,
-      duration: 5000 // 5 seconds default
-    },
-    {
-      id: 'image-3',
-      name: 'Sample Image 3',
-      type: MediaType.IMAGE,
-      duration: 5000 // 5 seconds default
+      duration: 5000, // 5 seconds default
+      url: 'https://andchir.github.io/video-timeline/image.jpg'
     }
   ];
 
