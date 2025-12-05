@@ -13,6 +13,7 @@ export interface MediaItem {
   maxDuration?: number; // milliseconds - maximum duration for audio/video placeholders
   trackId: string;
   name?: string;
+  url?: string; // URL to the actual media file
   isPlaceholder?: boolean;
 }
 
