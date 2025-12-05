@@ -65,6 +65,21 @@ export class PlaybackService {
     if (this._isPlaying()) return;
 
     this._isPlaying.set(true);
+
+    // Start playing any already-loaded media elements
+    for (const activeMedia of this.activeMediaMap.values()) {
+      if (activeMedia.element instanceof HTMLVideoElement) {
+        const videoElement = activeMedia.element as HTMLVideoElement;
+        videoElement.play().catch(() => {
+          // Autoplay may be blocked, try muted
+          videoElement.muted = true;
+          videoElement.play().catch(() => {});
+        });
+      } else if (activeMedia.element instanceof HTMLAudioElement) {
+        activeMedia.element.play().catch(() => {});
+      }
+    }
+
     this.lastFrameTime = performance.now();
     this.startPlaybackLoop(tracks, totalDuration);
   }
@@ -194,18 +209,24 @@ export class PlaybackService {
         (element as HTMLVideoElement).src = item.url;
         (element as HTMLVideoElement).currentTime = mediaTime;
         (element as HTMLVideoElement).muted = false;
-        (element as HTMLVideoElement).play().catch(() => {
-          // Autoplay may be blocked, try muted
-          (element as HTMLVideoElement).muted = true;
-          (element as HTMLVideoElement).play().catch(() => {});
-        });
+        // Only play if playback is active
+        if (this._isPlaying()) {
+          (element as HTMLVideoElement).play().catch(() => {
+            // Autoplay may be blocked, try muted
+            (element as HTMLVideoElement).muted = true;
+            (element as HTMLVideoElement).play().catch(() => {});
+          });
+        }
         break;
 
       case MediaType.AUDIO:
         element = document.createElement('audio');
         (element as HTMLAudioElement).src = item.url;
         (element as HTMLAudioElement).currentTime = mediaTime;
-        (element as HTMLAudioElement).play().catch(() => {});
+        // Only play if playback is active
+        if (this._isPlaying()) {
+          (element as HTMLAudioElement).play().catch(() => {});
+        }
         break;
 
       case MediaType.IMAGE:
