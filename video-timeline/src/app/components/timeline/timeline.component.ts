@@ -1,10 +1,11 @@
-import { Component, signal, computed, ViewChild, ElementRef } from '@angular/core';
+import { Component, signal, computed, ViewChild, ElementRef, AfterViewInit, OnDestroy, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MediaType, MediaItem, Track, TimelineState } from '../../models/timeline.models';
 import { MediaLibraryComponent, MediaLibraryItem } from '../media-library/media-library.component';
 import { MediaToolbarComponent } from '../media-toolbar/media-toolbar.component';
 import { NotificationsComponent } from '../notifications/notifications.component';
 import { TimelineDragDropService } from '../../services/timeline-drag-drop.service';
+import { PlaybackService } from '../../services/playback.service';
 
 @Component({
   selector: 'app-timeline',
@@ -13,7 +14,7 @@ import { TimelineDragDropService } from '../../services/timeline-drag-drop.servi
   templateUrl: './timeline.component.html',
   styleUrl: './timeline.component.css'
 })
-export class TimelineComponent {
+export class TimelineComponent implements AfterViewInit, OnDestroy {
   // Zoom levels: pixels per second
   private readonly MIN_ZOOM = 10;
   private readonly MAX_ZOOM = 200;
@@ -22,9 +23,14 @@ export class TimelineComponent {
   private readonly SNAP_PROXIMITY_MS = 500; // Snap to item if playhead is within 500ms
   private readonly MIN_ITEM_DURATION = 100; // Minimum item duration in milliseconds
 
+  // Canvas dimensions for preview
+  readonly PREVIEW_WIDTH = 640;
+  readonly PREVIEW_HEIGHT = 360;
+
   // View references
   @ViewChild('timelineRuler') timelineRuler?: ElementRef<HTMLElement>;
   @ViewChild('notifications') notificationsComponent?: NotificationsComponent;
+  @ViewChild('previewCanvas') previewCanvas?: ElementRef<HTMLCanvasElement>;
 
   // Timeline state
   readonly state = signal<TimelineState>({
@@ -107,7 +113,60 @@ export class TimelineComponent {
     return this.clipboardItem() !== null;
   });
 
-  constructor(private dragDropService: TimelineDragDropService) {
+  // Render loop ID for cleanup
+  private renderLoopId: number | null = null;
+
+  constructor(
+    private dragDropService: TimelineDragDropService,
+    public playbackService: PlaybackService
+  ) {
+    // Effect to sync playhead position from PlaybackService during playback
+    effect(() => {
+      if (this.playbackService.isPlaying()) {
+        const position = this.playbackService.playheadPosition();
+        this.state.update(s => ({
+          ...s,
+          playheadPosition: position
+        }));
+      }
+    });
+  }
+
+  ngAfterViewInit(): void {
+    // Initialize canvas for preview rendering
+    if (this.previewCanvas) {
+      this.playbackService.setCanvas(this.previewCanvas.nativeElement);
+    }
+
+    // Start continuous render loop for preview (renders current frame even when paused)
+    this.startRenderLoop();
+  }
+
+  ngOnDestroy(): void {
+    // Clean up render loop
+    if (this.renderLoopId !== null) {
+      cancelAnimationFrame(this.renderLoopId);
+      this.renderLoopId = null;
+    }
+
+    // Stop playback
+    this.playbackService.stop();
+  }
+
+  /**
+   * Continuous render loop for preview canvas.
+   * Keeps rendering even when paused so seeking updates the preview.
+   */
+  private startRenderLoop(): void {
+    const render = () => {
+      // Only render if we have active media and are not playing
+      // (PlaybackService handles rendering during playback)
+      if (!this.playbackService.isPlaying()) {
+        this.playbackService.renderCurrentFrame();
+      }
+      this.renderLoopId = requestAnimationFrame(render);
+    };
+    this.renderLoopId = requestAnimationFrame(render);
   }
 
   // Track management
@@ -176,11 +235,16 @@ export class TimelineComponent {
     // getBoundingClientRect() already accounts for scroll, so we don't add scrollLeft
     const x = coords.clientX - rect.left;
     const newPosition = x / this.pixelsPerMillisecond();
+    const currentState = this.state();
+    const clampedPosition = Math.max(0, Math.min(newPosition, currentState.totalDuration));
 
     this.state.update(s => ({
       ...s,
-      playheadPosition: Math.max(0, Math.min(newPosition, s.totalDuration))
+      playheadPosition: clampedPosition
     }));
+
+    // Sync position to playback service for seeking
+    this.playbackService.seek(currentState.tracks, clampedPosition);
   }
 
   onPlayheadPointerDown(event: MouseEvent | TouchEvent): void {
@@ -497,11 +561,16 @@ export class TimelineComponent {
       const rect = rulerElement.getBoundingClientRect();
       const x = coords.clientX - rect.left;
       const newPosition = x / this.pixelsPerMillisecond();
+      const currentState = this.state();
+      const clampedPosition = Math.max(0, Math.min(newPosition, currentState.totalDuration));
 
       this.state.update(s => ({
         ...s,
-        playheadPosition: Math.max(0, Math.min(newPosition, s.totalDuration))
+        playheadPosition: clampedPosition
       }));
+
+      // Sync position to playback service for seeking (but don't call too frequently during drag)
+      this.playbackService.seek(currentState.tracks, clampedPosition);
     }
 
     // Fix for issue #96: Handle media item dragging and resizing at document level for touch events
@@ -719,21 +788,43 @@ export class TimelineComponent {
 
   // Video preview controls
   togglePlayback(): void {
-    this.isPlaying.update(playing => !playing);
+    const currentState = this.state();
+
+    if (this.playbackService.isPlaying()) {
+      this.playbackService.pause();
+      this.isPlaying.set(false);
+    } else {
+      // Sync playhead position to PlaybackService before starting
+      this.playbackService.setPlayheadPosition(currentState.playheadPosition);
+      this.playbackService.play(currentState.tracks, currentState.totalDuration);
+      this.isPlaying.set(true);
+    }
   }
 
   skipBackward(): void {
+    const currentState = this.state();
+    const newPosition = Math.max(0, currentState.playheadPosition - 5000);
+
     this.state.update(s => ({
       ...s,
-      playheadPosition: Math.max(0, s.playheadPosition - 5000)
+      playheadPosition: newPosition
     }));
+
+    // Sync position and update media
+    this.playbackService.seek(currentState.tracks, newPosition);
   }
 
   skipForward(): void {
+    const currentState = this.state();
+    const newPosition = Math.min(currentState.totalDuration, currentState.playheadPosition + 5000);
+
     this.state.update(s => ({
       ...s,
-      playheadPosition: Math.min(s.totalDuration, s.playheadPosition + 5000)
+      playheadPosition: newPosition
     }));
+
+    // Sync position and update media
+    this.playbackService.seek(currentState.tracks, newPosition);
   }
 
   // Duration editor methods
@@ -824,6 +915,7 @@ export class TimelineComponent {
       duration: adjustedDuration,
       trackId: this.mediaLibraryTargetTrackId,
       name: media.name,
+      url: media.url, // Pass URL from media library for playback
       isPlaceholder: false
     };
 

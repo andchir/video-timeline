@@ -14,12 +14,13 @@
   <!-- Video Preview Area -->
   <div class="flex justify-center items-center py-6 bg-[#252525] border-b border-[#3a3a3a]">
     <div class="flex flex-col items-center gap-3">
-      <!-- Video Preview Placeholder -->
-      <div class="w-[640px] h-[360px] bg-[#1a1a1a] rounded-lg border border-[#3a3a3a] flex items-center justify-center">
-        <div class="flex flex-col items-center gap-2 text-gray-400">
-          <i class="bi bi-film text-6xl"></i>
-          <span class="text-sm">Video preview</span>
-        </div>
+      <!-- Video Preview Canvas -->
+      <div class="w-[640px] h-[360px] bg-[#1a1a1a] rounded-lg border border-[#3a3a3a] flex items-center justify-center overflow-hidden">
+        <canvas #previewCanvas
+                [width]="PREVIEW_WIDTH"
+                [height]="PREVIEW_HEIGHT"
+                class="w-full h-full">
+        </canvas>
       </div>
 
       <!-- Playback Controls -->
