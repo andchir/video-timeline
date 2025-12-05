@@ -34,7 +34,7 @@ export class TimelineComponent {
     ],
     playheadPosition: 0,
     zoomLevel: 50, // pixels per second
-    totalDuration: 60000, // 60 seconds in milliseconds
+    totalDuration: 120000, // 120 seconds in milliseconds
     selectedItemId: null
   });
 
