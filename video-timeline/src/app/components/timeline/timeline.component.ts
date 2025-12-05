@@ -92,7 +92,7 @@ export class TimelineComponent {
 
   // Duration editor state
   readonly showDurationEditor = signal<boolean>(false);
-  private editedDuration: number = 60; // Duration in seconds
+  private editedDuration: number = 120; // Duration in seconds
 
   // Media library state
   readonly showMediaLibrary = signal<boolean>(false);
