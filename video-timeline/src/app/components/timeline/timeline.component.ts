@@ -6,6 +6,7 @@ import { MediaToolbarComponent } from '../media-toolbar/media-toolbar.component'
 import { NotificationsComponent } from '../notifications/notifications.component';
 import { TimelineDragDropService } from '../../services/timeline-drag-drop.service';
 import { PlaybackService } from '../../services/playback.service';
+import { TimelineStorageService } from '../../services/timeline-storage.service';
 
 @Component({
   selector: 'app-timeline',
@@ -118,8 +119,15 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
   constructor(
     private dragDropService: TimelineDragDropService,
-    public playbackService: PlaybackService
+    public playbackService: PlaybackService,
+    private storageService: TimelineStorageService
   ) {
+    // Load saved state from LocalStorage on initialization
+    const savedState = this.storageService.loadState();
+    if (savedState) {
+      this.state.set(savedState);
+    }
+
     // Effect to sync playhead position from PlaybackService during playback
     effect(() => {
       if (this.playbackService.isPlaying()) {
@@ -129,6 +137,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
           playheadPosition: position
         }));
       }
+    });
+
+    // Effect to auto-save timeline state to LocalStorage on any change
+    effect(() => {
+      const currentState = this.state();
+      this.storageService.saveState(currentState);
     });
   }
 
@@ -785,6 +799,38 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   readonly MediaType = MediaType;
+
+  /**
+   * Create a new project by clearing the timeline and LocalStorage
+   */
+  newProject(): void {
+    // Stop playback if playing
+    if (this.playbackService.isPlaying()) {
+      this.playbackService.stop();
+      this.isPlaying.set(false);
+    }
+
+    // Reset timeline state to initial values
+    this.state.set({
+      tracks: [
+        { id: '1', name: 'Track 1', order: 0, items: [] },
+        { id: '2', name: 'Track 2', order: 1, items: [] }
+      ],
+      playheadPosition: 0,
+      zoomLevel: 50,
+      totalDuration: 120000,
+      selectedItemId: null
+    });
+
+    // Clear LocalStorage
+    this.storageService.clearState();
+
+    // Show notification
+    this.notificationsComponent?.showNotification(
+      'New project created. Timeline cleared.',
+      'success'
+    );
+  }
 
   // Video preview controls
   togglePlayback(): void {
