@@ -7,7 +7,7 @@ import { MediaItem, MediaType, Track } from '../models/timeline.models';
 export interface ActiveMedia {
   item: MediaItem;
   element: HTMLVideoElement | HTMLAudioElement | HTMLImageElement;
-  trackOrder: number; // For layering: lower order = rendered first (bottom layer)
+  trackOrder: number; // For layering: higher order = rendered first (bottom layer)
 }
 
 /**
@@ -38,7 +38,7 @@ export class PlaybackService {
   // Computed: current active media items for rendering
   readonly activeMediaItems = computed(() => {
     return Array.from(this.activeMediaMap.values())
-      .sort((a, b) => a.trackOrder - b.trackOrder);
+      .sort((a, b) => b.trackOrder - a.trackOrder);
   });
 
   constructor() {}
@@ -293,9 +293,9 @@ export class PlaybackService {
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Get active media sorted by track order (lower order = bottom layer)
+    // Get active media sorted by track order (higher order = bottom layer)
     const sortedMedia = Array.from(this.activeMediaMap.values())
-      .sort((a, b) => a.trackOrder - b.trackOrder);
+      .sort((a, b) => b.trackOrder - a.trackOrder);
 
     // Render each media item
     for (const activeMedia of sortedMedia) {
