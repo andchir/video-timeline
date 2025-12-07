@@ -154,6 +154,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
     // Start continuous render loop for preview (renders current frame even when paused)
     this.startRenderLoop();
+
+    // Synchronize media and render initial frame if state was loaded from LocalStorage
+    const currentState = this.state();
+    if (currentState.tracks.length > 0) {
+      this.playbackService.seek(currentState.tracks, currentState.playheadPosition);
+    }
   }
 
   ngOnDestroy(): void {
