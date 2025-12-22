@@ -3,6 +3,25 @@
   <div class="flex justify-between items-center px-4 py-3 bg-[#252525] border-b border-[#3a3a3a]">
     <h2 class="text-lg font-semibold m-0">VideoEditor</h2>
     <div class="flex gap-4 items-center">
+      <!-- Undo/Redo buttons -->
+      <div class="flex gap-1">
+        <button
+          (click)="undo()"
+          [disabled]="!canUndo()"
+          class="px-3 py-1.5 bg-[#3a3a3a] text-white border-none rounded cursor-pointer text-sm transition-colors hover:bg-[#4a4a4a] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#3a3a3a]"
+          title="Undo (Ctrl+Z)">
+          <i class="bi bi-arrow-counterclockwise"></i>
+          <span>Undo</span>
+        </button>
+        <button
+          (click)="redo()"
+          [disabled]="!canRedo()"
+          class="px-3 py-1.5 bg-[#3a3a3a] text-white border-none rounded cursor-pointer text-sm transition-colors hover:bg-[#4a4a4a] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#3a3a3a]"
+          title="Redo (Ctrl+Y)">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Redo</span>
+        </button>
+      </div>
       <button
         (click)="newProject()"
         class="px-3 py-1.5 bg-[#3a3a3a] text-white border-none rounded cursor-pointer text-sm transition-colors hover:bg-[#4a4a4a] flex items-center gap-2"
