@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, NgZone, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface Notification {
@@ -9,9 +9,10 @@ export interface Notification {
 
 /** Tracks progress bar state for a notification */
 interface NotificationTimerState {
-  timer: ReturnType<typeof setTimeout> | null;
+  animationFrameId: number | null;
   startTime: number;
   remainingTime: number;
+  isPaused: boolean;
 }
 
 @Component({
@@ -23,15 +24,13 @@ interface NotificationTimerState {
 })
 export class NotificationsComponent {
   private readonly AUTO_DISMISS_DELAY = 4000; // 4 seconds
+  private readonly ngZone = inject(NgZone);
 
   // Internal state
   readonly notifications = signal<Notification[]>([]);
 
   // Track timers and progress for each notification
   private timerStates = new Map<string, NotificationTimerState>();
-
-  // Track paused state for progress bar CSS animation
-  readonly pausedNotifications = signal<Set<string>>(new Set());
 
   // Track progress percentage for each notification (0-100)
   readonly progressMap = signal<Map<string, number>>(new Map());
@@ -46,9 +45,10 @@ export class NotificationsComponent {
 
     // Initialize timer state with full duration
     this.timerStates.set(id, {
-      timer: null,
+      animationFrameId: null,
       startTime: Date.now(),
-      remainingTime: this.AUTO_DISMISS_DELAY
+      remainingTime: this.AUTO_DISMISS_DELAY,
+      isPaused: false
     });
 
     // Initialize progress at 100%
@@ -59,14 +59,14 @@ export class NotificationsComponent {
     });
 
     this.notifications.update(list => [...list, notification]);
-    this.startDismissTimer(id);
+    this.startProgressAnimation(id);
   }
 
   /**
    * Remove a notification by ID
    */
   dismissNotification(id: string): void {
-    this.clearDismissTimer(id);
+    this.stopProgressAnimation(id);
     this.timerStates.delete(id);
     this.notifications.update(list => list.filter(n => n.id !== id));
 
@@ -77,12 +77,6 @@ export class NotificationsComponent {
       return newMap;
     });
 
-    // Clean up paused state
-    this.pausedNotifications.update(set => {
-      const newSet = new Set(set);
-      newSet.delete(id);
-      return newSet;
-    });
   }
 
   /**
@@ -90,43 +84,29 @@ export class NotificationsComponent {
    */
   onNotificationMouseEnter(id: string): void {
     const state = this.timerStates.get(id);
-    if (state) {
-      // Calculate remaining time
+    if (state && !state.isPaused) {
+      // Calculate remaining time based on elapsed time since last start
       const elapsed = Date.now() - state.startTime;
       state.remainingTime = Math.max(0, state.remainingTime - elapsed);
+      state.isPaused = true;
 
-      // Update progress percentage based on remaining time
-      const progressPercent = (state.remainingTime / this.AUTO_DISMISS_DELAY) * 100;
-      this.progressMap.update(map => {
-        const newMap = new Map(map);
-        newMap.set(id, progressPercent);
-        return newMap;
-      });
+      // Stop the animation loop
+      this.stopProgressAnimation(id);
     }
-
-    // Clear the timer
-    this.clearDismissTimer(id);
-
-    // Mark as paused for CSS animation
-    this.pausedNotifications.update(set => {
-      const newSet = new Set(set);
-      newSet.add(id);
-      return newSet;
-    });
   }
 
   /**
    * Called when mouse leaves the notification - continue the timer from remaining time
    */
   onNotificationMouseLeave(id: string): void {
-    // Unmark as paused
-    this.pausedNotifications.update(set => {
-      const newSet = new Set(set);
-      newSet.delete(id);
-      return newSet;
-    });
+    const state = this.timerStates.get(id);
+    if (state && state.isPaused) {
+      state.isPaused = false;
+      state.startTime = Date.now();
 
-    this.startDismissTimer(id);
+      // Resume the animation loop
+      this.startProgressAnimation(id);
+    }
   }
 
   /**
@@ -164,13 +144,6 @@ export class NotificationsComponent {
   }
 
   /**
-   * Check if a notification progress bar is paused
-   */
-  isNotificationPaused(id: string): boolean {
-    return this.pausedNotifications().has(id);
-  }
-
-  /**
    * Get progress percentage for a notification
    */
   getProgress(id: string): number {
@@ -178,35 +151,57 @@ export class NotificationsComponent {
   }
 
   /**
-   * Get animation duration based on remaining time (for CSS)
+   * Start the progress bar animation using requestAnimationFrame.
+   * This provides smooth animation and precise timing synchronization
+   * between the visual progress bar and the dismiss timer.
    */
-  getAnimationDuration(id: string): number {
-    const state = this.timerStates.get(id);
-    return state ? state.remainingTime : this.AUTO_DISMISS_DELAY;
-  }
-
-  private startDismissTimer(id: string): void {
-    this.clearDismissTimer(id);
-
+  private startProgressAnimation(id: string): void {
     const state = this.timerStates.get(id);
     if (!state) return;
 
-    // Update start time for this run
-    state.startTime = Date.now();
+    // Cancel any existing animation
+    this.stopProgressAnimation(id);
 
-    // Set timer for remaining time
-    const timer = setTimeout(() => {
-      this.dismissNotification(id);
-    }, state.remainingTime);
+    const animate = (): void => {
+      const currentState = this.timerStates.get(id);
+      if (!currentState || currentState.isPaused) return;
 
-    state.timer = timer;
+      const elapsed = Date.now() - currentState.startTime;
+      const remaining = Math.max(0, currentState.remainingTime - elapsed);
+      const progressPercent = (remaining / this.AUTO_DISMISS_DELAY) * 100;
+
+      // Update progress in the map
+      this.progressMap.update(map => {
+        const newMap = new Map(map);
+        newMap.set(id, progressPercent);
+        return newMap;
+      });
+
+      // Dismiss when progress reaches 0
+      if (remaining <= 0) {
+        this.dismissNotification(id);
+        return;
+      }
+
+      // Continue animation loop outside Angular zone for performance
+      this.ngZone.runOutsideAngular(() => {
+        currentState.animationFrameId = requestAnimationFrame(() => {
+          this.ngZone.run(() => animate());
+        });
+      });
+    };
+
+    animate();
   }
 
-  private clearDismissTimer(id: string): void {
+  /**
+   * Stop the progress bar animation
+   */
+  private stopProgressAnimation(id: string): void {
     const state = this.timerStates.get(id);
-    if (state?.timer) {
-      clearTimeout(state.timer);
-      state.timer = null;
+    if (state?.animationFrameId !== null && state?.animationFrameId !== undefined) {
+      cancelAnimationFrame(state.animationFrameId);
+      state.animationFrameId = null;
     }
   }
 }

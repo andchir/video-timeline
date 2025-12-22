@@ -23,10 +23,8 @@
       <div class="notification-progress-container">
         <div
           class="notification-progress-bar"
-          [class.paused]="isNotificationPaused(notification.id)"
           [style.width.%]="getProgress(notification.id)"
-          [style.background-color]="getProgressColor(notification.type)"
-          [style.animation-duration.ms]="getAnimationDuration(notification.id)">
+          [style.background-color]="getProgressColor(notification.type)">
         </div>
       </div>
     </div>

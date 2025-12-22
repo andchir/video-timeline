@@ -110,20 +110,6 @@
 
 .notification-progress-bar {
   height: 100%;
-  width: 100%;
-  animation: progress-shrink linear forwards;
-  transform-origin: left center;
-}
-
-.notification-progress-bar.paused {
-  animation-play-state: paused;
-}
-
-@keyframes progress-shrink {
-  from {
-    width: 100%;
-  }
-  to {
-    width: 0%;
-  }
+  /* Width is controlled via JavaScript for precise timing synchronization */
+  transition: none;
 }
