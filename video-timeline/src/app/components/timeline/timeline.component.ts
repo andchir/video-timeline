@@ -203,6 +203,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       ...s,
       tracks: [...s.tracks, newTrack]
     }));
+
+    // Show notification for adding track
+    this.notificationsComponent?.showNotification(
+      `Track "${newTrack.name}" added.`,
+      'success'
+    );
   }
 
   removeTrack(trackId: string): void {
@@ -211,10 +217,20 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       return; // Keep at least one track
     }
 
+    // Get track name before removing
+    const trackToRemove = currentState.tracks.find(t => t.id === trackId);
+    const trackName = trackToRemove?.name || 'Track';
+
     this.state.update(s => ({
       ...s,
       tracks: s.tracks.filter(t => t.id !== trackId)
     }));
+
+    // Show notification for removing track
+    this.notificationsComponent?.showNotification(
+      `Track "${trackName}" removed.`,
+      'info'
+    );
   }
 
   // Zoom controls
@@ -770,6 +786,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
           : t
       )
     }));
+
+    // Show notification for adding media
+    this.notificationsComponent?.showNotification(
+      'Media added to timeline.',
+      'success'
+    );
   }
 
   removeMediaItem(itemId: string, trackId: string): void {
@@ -783,6 +805,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       // Deselect if removing selected item
       selectedItemId: s.selectedItemId === itemId ? null : s.selectedItemId
     }));
+
+    // Show notification for removing media
+    this.notificationsComponent?.showNotification(
+      'Media removed from timeline.',
+      'info'
+    );
   }
 
   // Media selection
@@ -986,6 +1014,12 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
           : t
       )
     }));
+
+    // Show notification for adding media
+    this.notificationsComponent?.showNotification(
+      `"${media.name}" added to timeline.`,
+      'success'
+    );
 
     // Close the media library after selection
     this.closeMediaLibrary();
