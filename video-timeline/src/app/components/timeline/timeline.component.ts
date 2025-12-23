@@ -1,4 +1,4 @@
-import { Component, signal, computed, ViewChild, ElementRef, AfterViewInit, OnDestroy, effect } from '@angular/core';
+import { Component, signal, computed, ViewChild, ElementRef, AfterViewInit, OnDestroy, effect, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MediaType, MediaItem, Track, TimelineState } from '../../models/timeline.models';
 import { MediaLibraryComponent, MediaLibraryItem } from '../media-library/media-library.component';
@@ -7,6 +7,7 @@ import { NotificationsComponent } from '../notifications/notifications.component
 import { TimelineDragDropService } from '../../services/timeline-drag-drop.service';
 import { PlaybackService } from '../../services/playback.service';
 import { TimelineStorageService } from '../../services/timeline-storage.service';
+import { TimelineHistoryService } from '../../services/timeline-history.service';
 
 @Component({
   selector: 'app-timeline',
@@ -93,6 +94,7 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
   private isDraggingFromRuler = false;
   private resizingItem: { item: MediaItem; edge: 'left' | 'right' } | null = null;
   private mouseDownPosition: { x: number; y: number } | null = null; // Track mouse down position for click detection
+  private hasHistorySavedForCurrentOperation = false; // Track if history was saved for drag/resize operation
 
   // Video preview state
   readonly isPlaying = signal<boolean>(false);
@@ -114,13 +116,18 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
     return this.clipboardItem() !== null;
   });
 
+  // Computed: whether undo/redo is available
+  readonly canUndo = computed(() => this.historyService.canUndo());
+  readonly canRedo = computed(() => this.historyService.canRedo());
+
   // Render loop ID for cleanup
   private renderLoopId: number | null = null;
 
   constructor(
     private dragDropService: TimelineDragDropService,
     public playbackService: PlaybackService,
-    private storageService: TimelineStorageService
+    private storageService: TimelineStorageService,
+    private historyService: TimelineHistoryService
   ) {
     // Load saved state from LocalStorage on initialization
     const savedState = this.storageService.loadState();
@@ -191,6 +198,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
   // Track management
   addTrack(): void {
+    // Save state before modification for undo
+    this.saveStateToHistory();
+
     const currentState = this.state();
     const newTrack: Track = {
       id: `track-${Date.now()}`,
@@ -216,6 +226,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
     if (currentState.tracks.length <= 1) {
       return; // Keep at least one track
     }
+
+    // Save state before modification for undo
+    this.saveStateToHistory();
 
     // Get track name before removing
     const trackToRemove = currentState.tracks.find(t => t.id === trackId);
@@ -296,6 +309,10 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
     // Check if clicking/touching on resize handle
     if (target.classList.contains('resize-handle')) {
+      // Save state for undo before resize operation starts
+      this.saveStateToHistory();
+      this.hasHistorySavedForCurrentOperation = true;
+
       this.resizingItem = {
         item,
         edge: target.classList.contains('resize-handle-left') ? 'left' : 'right'
@@ -313,6 +330,10 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
     // Convert pixel offset to time offset
     this.dragOffsetTime = clickX / this.pixelsPerMillisecond();
+
+    // Save state for undo before drag operation starts
+    this.saveStateToHistory();
+    this.hasHistorySavedForCurrentOperation = true;
 
     this.draggedItem = item;
     this.draggedItemOriginalTrackId = track.id;
@@ -581,6 +602,7 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
     this.isDraggingFromRuler = false;
     this.resizingItem = null;
     this.mouseDownPosition = null;
+    this.hasHistorySavedForCurrentOperation = false; // Reset history flag
   }
 
   onDocumentPointerMove(event: MouseEvent | TouchEvent): void {
@@ -727,6 +749,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 
     if (!track) return;
 
+    // Save state before modification for undo
+    this.saveStateToHistory();
+
     const playheadTime = currentState.playheadPosition;
     const totalDuration = currentState.totalDuration;
     const newItemDuration = type === MediaType.IMAGE ? 5000 : 3000;
@@ -795,6 +820,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   removeMediaItem(itemId: string, trackId: string): void {
+    // Save state before modification for undo
+    this.saveStateToHistory();
+
     this.state.update(s => ({
       ...s,
       tracks: s.tracks.map(t =>
@@ -864,6 +892,73 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       'New project created. Timeline cleared.',
       'success'
     );
+
+    // Clear undo/redo history when creating a new project
+    this.historyService.clearHistory();
+  }
+
+  /**
+   * Push current state to history before making a change.
+   * Should be called at the start of any operation that modifies the timeline.
+   */
+  private saveStateToHistory(): void {
+    this.historyService.pushState(this.state());
+  }
+
+  /**
+   * Undo the last action.
+   * Restores the previous timeline state.
+   */
+  undo(): void {
+    const previousState = this.historyService.undo(this.state());
+    if (previousState) {
+      this.state.set(previousState);
+
+      // Sync playback service with new state
+      this.playbackService.seek(previousState.tracks, previousState.playheadPosition);
+
+      this.notificationsComponent?.showNotification('Undo successful.', 'info');
+    }
+  }
+
+  /**
+   * Redo the last undone action.
+   * Restores the next timeline state.
+   */
+  redo(): void {
+    const nextState = this.historyService.redo(this.state());
+    if (nextState) {
+      this.state.set(nextState);
+
+      // Sync playback service with new state
+      this.playbackService.seek(nextState.tracks, nextState.playheadPosition);
+
+      this.notificationsComponent?.showNotification('Redo successful.', 'info');
+    }
+  }
+
+  /**
+   * Handle keyboard shortcuts for undo/redo.
+   */
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardShortcuts(event: KeyboardEvent): void {
+    // Skip if user is typing in an input field
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // Ctrl+Z or Cmd+Z for undo
+    if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      this.undo();
+    }
+
+    // Ctrl+Y or Cmd+Shift+Z for redo
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+      event.preventDefault();
+      this.redo();
+    }
   }
 
   // Video preview controls
@@ -926,6 +1021,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   saveDuration(): void {
+    // Save state before modification for undo
+    this.saveStateToHistory();
+
     const newDurationMs = Math.max(1000, this.editedDuration * 1000); // At least 1 second
     this.state.update(s => ({
       ...s,
@@ -954,6 +1052,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
     const track = currentState.tracks.find(t => t.id === this.mediaLibraryTargetTrackId);
 
     if (!track) return;
+
+    // Save state before modification for undo
+    this.saveStateToHistory();
 
     const playheadTime = currentState.playheadPosition;
     const totalDuration = currentState.totalDuration;
@@ -1079,6 +1180,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       );
       return;
     }
+
+    // Save state before modification for undo
+    this.saveStateToHistory();
 
     // Calculate mediaStartTime adjustments
     const originalMediaStartTime = selectedItem.mediaStartTime || 0;
@@ -1214,6 +1318,9 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
       );
       return;
     }
+
+    // Save state before modification for undo
+    this.saveStateToHistory();
 
     // Create a new item with a new ID
     const newItem: MediaItem = {
