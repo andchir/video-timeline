@@ -1,28 +1,31 @@
-<div class="notifications-container">
+<div class="fixed top-4 right-4 flex flex-col gap-2 z-[3000] max-w-[400px]">
   @for (notification of notifications(); track notification.id) {
     <div
-      class="notification"
-      [class.notification-info]="notification.type === 'info'"
-      [class.notification-success]="notification.type === 'success'"
-      [class.notification-warning]="notification.type === 'warning'"
-      [class.notification-error]="notification.type === 'error'"
+      class="notification flex flex-col rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] shadow-lg min-w-[280px] overflow-hidden"
+      [class.border-amber-500]="notification.type === 'warning'"
+      [class.border-red-500]="notification.type === 'error'"
       (mouseenter)="onNotificationMouseEnter(notification.id)"
       (mouseleave)="onNotificationMouseLeave(notification.id)">
-      <div class="notification-body">
-        <div class="notification-content">
-          <i class="bi" [class]="getNotificationIcon(notification.type)"></i>
-          <span class="notification-message">{{ notification.message }}</span>
+      <div class="flex items-start justify-between px-4 py-3">
+        <div class="flex items-start gap-2.5 flex-1">
+          <i class="bi text-lg flex-shrink-0 mt-0.5"
+             [class]="getNotificationIcon(notification.type)"
+             [class.text-blue-500]="notification.type === 'info'"
+             [class.text-green-500]="notification.type === 'success'"
+             [class.text-amber-500]="notification.type === 'warning'"
+             [class.text-red-500]="notification.type === 'error'"></i>
+          <span class="text-sm leading-relaxed text-neutral-200 break-words">{{ notification.message }}</span>
         </div>
         <button
-          class="notification-close"
+          class="bg-transparent border-none text-gray-500 cursor-pointer p-0 ml-2 text-lg leading-none flex-shrink-0 transition-colors hover:text-white"
           (click)="dismissNotification(notification.id)"
           title="Close">
           <i class="bi bi-x"></i>
         </button>
       </div>
-      <div class="notification-progress-container">
+      <div class="w-full h-[3px] bg-white/10">
         <div
-          class="notification-progress-bar"
+          class="h-full"
           [style.width.%]="getProgress(notification.id)"
           [style.background-color]="getProgressColor(notification.type)">
         </div>
